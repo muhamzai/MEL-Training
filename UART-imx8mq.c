@@ -7,30 +7,23 @@
 #include <linux/kthread.h>
 #include <linux/mutex.h>
 #include <linux/io.h>
+#include <linux/delay.h>
 #define  DEVICE_NAME "imxqUART"    ///< The device will appear at /dev/ebbchar using this value
 #define  CLASS_NAME  "UART"        ///< The device class -- this is a character device driver
-#define UART1_URXD 0x30860000       //32 bit read only
-#define UART1_UTXD 0x30860040       //32 bit write only
-#define UART1_UCR1 0x30860080       //32bit r/w control register
-#define UART1_UFCR 0x30860090       //32bit r/w FIFO control register
-#define UART1_UTS  0x308600B4       //UART testing register
-
+#define UART1_URXD 0x30880000       //32 bit read only
+#define UART1_UTXD 0x30880040       //32 bit write only
+#define UART1_UCR1 0x30880080       //32bit r/w control register
+#define UART1_UFCR 0x30880090       //32bit r/w FIFO control register
+#define UART1_UTS  0x308800B4       //UART testing register
 
 char __iomem *txRegister, *rxRegister, *ctrlRegister, *testRegister;
-
+char __iomem *ctrlReg, *testReg;
 static char rxBuffer[1024]={"\0"};
 static char txBuffer[1024]={"\0"};
 static int rxIndex=0;
 int rxflag=0; //semaphore
 int txflag=0; //semaphore
 static int txLen=0;
-char r,t;
-//int volatile * const rxRegister = (int *) &r;
-//int volatile * const txRegister = (int *) &t;
-//#define UART1_URXD (*(volatile unsigned char*)0x30860000)
-//#define UART1_UTXD (*(volatile unsigned char*)0x30860040)
-//unsigned char volatile * const rxRegister = (volatile unsigned char *) UART1_URXD;
-//unsigned char volatile * const txRegister = (volatile unsigned char *) UART1_UTXD;
 struct task_struct *task1, *task2;
 static DEFINE_MUTEX(my_mutex);
 //struct mutex my_mutex;
@@ -120,7 +113,7 @@ static int thread_tx(void *data)
          mutex_lock(&my_mutex);
          if (txflag == 1)
          {
-            txRegister[0] = (char)0;   
+          // writel(0x0000,txRegister);
            // txRegister[0] = txBuffer[i];
             ISR2(0);
          
@@ -135,16 +128,18 @@ static int thread_rx(void *data)
 {
    while(1)
    {
+      //printk(KERN_INFO "recv rx char: %c", readl(rxRegister));
       mutex_lock(&my_mutex);
       if(kill_thread){return 1;}
       if (rxflag == 1)
       {
-         
+
          if(rxIndex>1023) //drop incoming packets if buffer full
          {rxIndex=1023;}
          else 
          {
-         rxBuffer[rxIndex]=rxRegister[0];
+         rxBuffer[rxIndex]=(char)readl(rxRegister);
+	 //rxBuffer[rxIndex] = rxRegister[0];
          rxIndex+=1;
          }
          //rxRegister[0] = (char)0;
@@ -157,7 +152,7 @@ static int thread_rx(void *data)
 }
 
 static int __init ebbchar_init(void){
-   int loopback = 2048;
+   int loopback = 4096;
    printk(KERN_INFO "EBBChar: Initializing the EBBChar LKM\n");
  
    // Try to dynamically allocate a major number for the device -- more difficult but worth it
@@ -199,7 +194,9 @@ static int __init ebbchar_init(void){
    rxRegister = ioremap_nocache(UART1_URXD, 4);
    ctrlRegister = ioremap_nocache(UART1_UCR1, 4);
    testRegister = ioremap_nocache(UART1_UTS, 4);
-   testRegister[0] = testRegister[0] | loopback;
+  
+
+   writel(0x1000,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
    task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
    task2 = kthread_run(thread_tx, NULL, "thread_func_tx");
@@ -252,15 +249,20 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
    memset (rxBuffer,'\0',1024);
    for (i=0;i<strlen(buffer);i++)
    {
-      txRegister[0] = buffer[i]; //in future remove this read from buffer as rxRegister will be set by UART port when data received and change interrupt to whenever data is available in rxregister
+      writel(buffer[i],txRegister);
+      //txRegister[0] = buffer[i];
+      //txRegister[0] = buffer[i]; //in future remove this read from buffer as rxRegister will be set by UART port when data received and change interrupt to whenever data is available in rxregister
       //printk(KERN_INFO "debug info: %c", txRegister[0]);
+      msleep(1);
       ISR(1);
-      ISR2(1);        //Interrupt to set rxthread buffer copy 
-      if (buffer[i]=='\0' || buffer[i]=='\n'){break;}
+      msleep(1);
+//      ISR2(1);        //Interrupt to set rxthread buffer copy 
+//      msleep(1);
+      //   if (buffer[i]=='\0' || buffer[i]=='\n'){i=strlen(buffer)-50;}
       //while(rxflag){} //wait till thread reads register
-   }
+   }   
+
    printk(KERN_INFO "recv rx: %s", rxBuffer);
-   
    return len;
 }
 
