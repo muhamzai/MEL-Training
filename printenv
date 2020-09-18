@@ -1,0 +1,24 @@
+u-boot=> setenv bootargs console=ttymxc2,115200 root=/dev/mmcblk1p2 rootwait rw
+u-boot=> console=ttymxc2
+u-boot=> printenv
+altbootcmd=setenv kernelfile ${prev_kernelfile} ; setenv part ${part_old}; saveenv ;  run bootcmd
+baudrate=115200
+bootargs=console=ttymxc2,115200 root=/dev/mmcblk1p2 rootwait rw
+bootcmd=run bootcmd_zimage
+bootcmd_itbimage= run loadimage; run setbootargs; bootm ${loadaddr};
+bootcmd_zimage= run loadimage;run loadfdt ; run setbootargs; booti ${loadaddr} - ${fdt_addr};
+console=ttymxc0
+ethaddr=00:04:9f:05:69:e8
+fastboot_dev=mmc1
+fdt_addr=0x43000000
+fdt_file=fsl-imx8mq-evk.dtb
+fdtcontroladdr=fc8fee60
+kernelfile=Image
+loadaddr=0x50000000
+loadfdt=fatload mmc ${mmcdev}:${mmcpart} ${fdt_addr} ${fdt_file}
+loadimage=fatload mmc ${mmcdev}:${mmcpart} ${loadaddr} ${kernelfile}
+mmcdev=1
+mmcpart=1
+part=2
+setbootargs=setenv bootargs console=${console},${baudrate} root=/dev/mmcblk1p${part} rootwait rw
+soc_type=imx8mq
