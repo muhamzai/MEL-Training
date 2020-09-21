@@ -1,15 +1,24 @@
-#include <linux/init.h>           // Macros used to mark up functions e.g. __init __exit
-#include <linux/module.h>         // Core header for loading LKMs into the kernel
-#include <linux/device.h>         // Header to support the kernel Driver Model
-#include <linux/kernel.h>         // Contains types, macros, functions for the kernel
-#include <linux/fs.h>             // Header for the Linux file system support
-#include <linux/uaccess.h>          // Required for the copy to user function
-#include <linux/kthread.h>
-#include <linux/mutex.h>
+#include <linux/init.h>          
+#include <linux/kernel.h>
+#include <linux/atomic.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#include <linux/module.h>
 #include <linux/io.h>
-#include <linux/delay.h>
+#include <linux/ioport.h>
+#include <linux/interrupt.h>
+#include <linux/kthread.h>
+#include <linux/console.h>
+#include <linux/tty.h>
+#include <linux/tty_flip.h>
+#include <linux/serial_core.h>
+#include <linux/slab.h>
 #include <linux/clk.h>
-#include <linux/device.h>
+#include <linux/platform_device.h>
+#include <linux/delay.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
+#include <linux/wait.h>
 
 #define  DEVICE_NAME "imxqUART"    ///< The device will appear at /dev/ebbchar using this value
 #define  CLASS_NAME  "UART"        ///< The device class -- this is a character device driver
@@ -236,7 +245,9 @@ static int __init ebbchar_init(void){
    writel(0x0000,UMCR);
    struct clk *c;
    char ad= 0x96; 
-	c = devm_clk_get(ebbcharDevice,&ad);
+   struct device_node *dev;
+   dev = of_find_node_by_path("/serial@30880000");
+	c = of_clk_get(dev,&ad);
    retclk = clk_prepare_enable(c);
    if (retclk<=0){printk(KERN_INFO "Clock Failed\n");}
    writel(0x1000,testRegister);  
