@@ -257,8 +257,15 @@ static int __init ebbchar_init(void){
    struct device_node *dev;
    dev = of_find_node_by_path("/serial@30880000");
 	c = of_clk_get_by_name(dev,"per");
-   retclk = clk_prepare_enable(c);
-   if (retclk<=0){printk(KERN_INFO "Clock Failed\n");}
+	if (IS_ERR(c)||c==NULL)
+	{
+		printk(KERN_INFO "NO CLOCK FOUND");
+	}
+   retclk = clk_prepare(c);
+   if (retclk<=0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
+   retclk = clk_enable(c);
+   if (retclk<=0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
+
    writel(0x1000,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
    task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
