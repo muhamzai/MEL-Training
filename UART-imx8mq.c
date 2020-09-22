@@ -74,9 +74,9 @@ void ISR2(int x)        //set/reset ISR2
 
 
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality
-MODULE_AUTHOR("Derek Molloy");    ///< The author -- visible when you use modinfo
+MODULE_AUTHOR("Hamza");    ///< The author -- visible when you use modinfo
 MODULE_DESCRIPTION("A simple Linux char driver for the char-dev");  ///< The description -- see modinfo
-MODULE_VERSION("0.1");            ///< A version number to inform users
+MODULE_VERSION("1.1");            ///< A version number to inform users
  
 static int    majorNumber;                 
 static int    numberOpens = 0;              ///< Counts the number of times the device is opened
@@ -242,6 +242,31 @@ static int __init ebbchar_init(void){
    UBRC = ioremap_nocache(UART1_UBRC,4);
    UMCR = ioremap_nocache(UART1_UMCR,4);
    UFCR = ioremap_nocache(UART1_UFCR,4);
+     struct clk *c;
+   char ad= 0x96;
+   struct device_node *dev;
+
+     dev = of_find_node_by_path("/serial@30880000");
+        c = of_clk_get_by_name(dev,"per");
+        if (IS_ERR(c)||c==NULL)
+        {
+                printk(KERN_INFO "NO CLOCK FOUND");
+        }
+   retclk = clk_prepare(c);
+   if (retclk<0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
+   retclk = clk_enable(c);
+   if (retclk<0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
+
+        c = of_clk_get_by_name(dev,"ipg");
+        if (IS_ERR(c)||c==NULL)
+        {
+                printk(KERN_INFO "NO CLOCK FOUND");
+        }
+   retclk = clk_prepare(c);
+   if (retclk<0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
+   retclk = clk_enable(c);
+   if (retclk<0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
+
 
    writel(0x0001,UCR1);
    writel(0x2127,UCR2);
@@ -252,20 +277,7 @@ static int __init ebbchar_init(void){
    writel(0x0C34,UBMR);
    writel(0x2201,UCR1);
    writel(0x0000,UMCR);
-   struct clk *c;
-   char ad= 0x96; 
-   struct device_node *dev;
-   dev = of_find_node_by_path("/serial@30880000");
-	c = of_clk_get_by_name(dev,"per");
-	if (IS_ERR(c)||c==NULL)
-	{
-		printk(KERN_INFO "NO CLOCK FOUND");
-	}
-   retclk = clk_prepare(c);
-   if (retclk<=0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
-   retclk = clk_enable(c);
-   if (retclk<=0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
-
+   
    writel(0x1000,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
    task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
