@@ -37,8 +37,27 @@
 #define UART1_UBRC 0x308800AC
 #define UART1_UMCR 0x308800B8
 
+
+#define UART_URXD 0x30860000       //32 bit read only
+#define UART_UTXD 0x30860040       //32 bit write only
+#define UART_UCR1 0x30860080       //32bit r/w control register
+#define UART_UCR2 0x30860084       //32bit r/w control register
+#define UART_UCR3 0x30860088       //32bit r/w control register
+#define UART_UCR4 0x3086008C       //32bit r/w control register
+#define UART_UFCR 0x30860090       //32bit r/w FIFO control register
+#define UART_UTS  0x308600B4       //UART testing register
+#define UART_USR1 0x30860094
+#define UART_USR2 0x30860098
+#define UART_UBIR 0x308600A4
+#define UART_UBMR 0x308600A8
+#define UART_UBRC 0x308600AC
+#define UART_UMCR 0x308600B8
+
+
+
 char __iomem *txRegister, *rxRegister, *UCR1 ,*UCR2, *UCR3, *UCR4, *testRegister, *USR1,*USR2,*UBIR,*UBMR,*UBRC,*UMCR ,*UFCR;
 char __iomem *ctrlReg, *testReg;
+char __iomem *UCR11 ,*UCR12, *UCR13, *UCR14, *testRegister1, *USR11,*USR12,*UBIR1,*UBMR1,*UBRC1,*UMCR1 ,*UFCR1;
 static char rxBuffer[1024]={"\0"};
 static char txBuffer[1024]={"\0"};
 static int rxIndex=0;
@@ -46,16 +65,8 @@ int rxflag=0; //semaphore
 int txflag=0; //semaphore
 static int txLen=0;
 char r,t;
-//int volatile * const rxRegister = (int *) &r;
-//int volatile * const txRegister = (int *) &t;
-//#define UART1_URXD (*(volatile unsigned char*)0x30860000)
-//#define UART1_UTXD (*(volatile unsigned char*)0x30860040)
-//unsigned char volatile * const rxRegister = (volatile unsigned char *) UART1_URXD;
-//unsigned char volatile * const txRegister = (volatile unsigned char *) UART1_UTXD;
 struct task_struct *task1, *task2;
 static DEFINE_MUTEX(my_mutex);
-//struct mutex my_mutex;
-//mutex_init(&my_mutex);
 #pragma interrupt_handler ISR
 void ISR(int x)        //set/reset ISR
 {
@@ -76,7 +87,7 @@ void ISR2(int x)        //set/reset ISR2
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality
 MODULE_AUTHOR("Hamza");    ///< The author -- visible when you use modinfo
 MODULE_DESCRIPTION("A simple Linux char driver for the char-dev");  ///< The description -- see modinfo
-MODULE_VERSION("1.1");            ///< A version number to inform users
+MODULE_VERSION("0.1");            ///< A version number to inform users
  
 static int    majorNumber;                 
 static int    numberOpens = 0;              ///< Counts the number of times the device is opened
@@ -164,7 +175,6 @@ static int thread_rx(void *data)
 {
    while(1)
    {
-      //printk(KERN_INFO "recv rx char: %c", readl(rxRegister));
       mutex_lock(&my_mutex);
       if(kill_thread){return 1;}
       if (rxflag == 1)
@@ -178,7 +188,6 @@ static int thread_rx(void *data)
 	 //rxBuffer[rxIndex] = rxRegister[0];
          rxIndex+=1;
          }
-         //rxRegister[0] = (char)0;
          ISR(0);
        
       }
@@ -242,6 +251,19 @@ static int __init ebbchar_init(void){
    UBRC = ioremap_nocache(UART1_UBRC,4);
    UMCR = ioremap_nocache(UART1_UMCR,4);
    UFCR = ioremap_nocache(UART1_UFCR,4);
+
+   UCR11 = ioremap_nocache(UART_UCR1, 4);
+   UCR12 = ioremap_nocache(UART_UCR2, 4);
+   UCR13 = ioremap_nocache(UART_UCR3, 4);
+   UCR14 = ioremap_nocache(UART_UCR4, 4);
+   USR11 = ioremap_nocache(UART_USR1,4);
+   USR12 = ioremap_nocache(UART_USR2,4);
+   UBIR1 = ioremap_nocache(UART_UBIR,4);
+   UBMR1 = ioremap_nocache(UART_UBMR,4);
+   UBRC1 = ioremap_nocache(UART_UBRC,4);
+   UMCR1 = ioremap_nocache(UART_UMCR,4);
+   UFCR1 = ioremap_nocache(UART_UFCR,4);
+
      struct clk *c;
    char ad= 0x96;
    struct device_node *dev;
@@ -269,14 +291,14 @@ static int __init ebbchar_init(void){
 
 
    writel(0x0001,UCR1);
-   writel(0x2127,UCR2);
-   writel(0x0704,UCR3);
-   writel(0x7C00,UCR4);
-   writel(0x089E,UFCR);
-   writel(0x089E,UBIR);
-   writel(0x0C34,UBMR);
-   writel(0x2201,UCR1);
-   writel(0x0000,UMCR);
+   writel(readl(UCR12),UCR2);
+   writel(readl(UCR13),UCR3);
+   writel(readl(UCR14),UCR4);
+   writel(readl(UFCR1),UFCR);
+   writel(readl(UBIR1),UBIR);
+   writel(readl(UBMR1),UBMR);
+   writel(readl(UCR11),UCR1);
+   writel(readl(UMCR1),UMCR);
    
    writel(0x1000,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
@@ -314,17 +336,13 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
    for ( i=0;i<len;i++)
    {
       ISR(1);        //Interrupt to set rxthread buffer copy 
-      //while(txflag){} //wait till thread reads register
-      //buffer[i] = txRegister[0]; //just a debug option to get what is in tx else data written to txregister will be set on tx line
-      // printk(KERN_INFO "debug info: %c", rxBuffer[rxIndex-1]);
-   }  //release comment when rx available
+   }  
    return len;
 }
 
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
-   //sprintf(message, "%s (%zu letters)", buffer, len);   // appending received string with its length
-  // size_of_message = strlen(message);                 // store the length of the stored message
    int i=0;
+   msleep(5);
    lines+=1;
    rxIndex=0;
    printk(KERN_INFO "recv tx pin: %s", buffer);
@@ -332,16 +350,10 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
    for (i=0;i<strlen(buffer);i++)
    {
       writel(buffer[i],txRegister);
-      //txRegister[0] = buffer[i];
-      //txRegister[0] = buffer[i]; //in future remove this read from buffer as rxRegister will be set by UART port when data received and change interrupt to whenever data is available in rxregister
-      //printk(KERN_INFO "debug info: %c", txRegister[0]);
       msleep(1);
       ISR(1);
-      msleep(1);
-//      ISR2(1);        //Interrupt to set rxthread buffer copy 
-//      msleep(1);
-      //   if (buffer[i]=='\0' || buffer[i]=='\n'){i=strlen(buffer)-50;}
-      //while(rxflag){} //wait till thread reads register
+      msleep(5);
+
    }   
 
    printk(KERN_INFO "recv rx: %s", rxBuffer);
