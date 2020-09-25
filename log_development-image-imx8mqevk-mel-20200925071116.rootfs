@@ -1,0 +1,55 @@
+\00\EF\00
+U-Boot SPL 2019.04-lf-5.4.y_v2019.04+g228843cdf5 (Sep 25 2020 - 06:57:57 +0000)
+PMIC:  PFUZE100 ID=0x10
+DDRINFO: start DRAM init
+DDRINFO:ddrphy calibration done
+DDRINFO: ddrmix config done
+Normal Boot
+Trying to boot from MMC2
+
+
+U-Boot 2019.04-lf-5.4.y_v2019.04+g228843cdf5 (Sep 25 2020 - 06:57:57 +0000)
+
+CPU:   Freescale i.MX8MQ rev2.0 1500 MHz (running at 1000 MHz)
+CPU:   Commercial temperature grade (0C to 95C) at 41C
+Reset cause: POR
+Model: Freescale i.MX8MQ EVK
+DRAM:  3 GiB
+TCPC:  Vendor ID [0x1fc9], Product ID [0x5110], Addr [I2C0 0x50]
+MMC:   FSL_SDHC: 0, FSL_SDHC: 1
+No panel detected: default to HDMI
+Display: HDMI (1280x720)
+In:    serial
+Out:   serial
+Err:   serial
+
+ BuildInfo:
+  - ATF 7b3389d
+  - U-Boot 2019.04-lf-5.4.y_v2019.04+g228843cdf5
+
+flash target is MMC:1
+Run CMD11 1.8V switch
+MMC card init failed!
+Run CMD11 1.8V switch
+** Block device MMC 1 not supported
+Net:   
+Warning: ethernet@30be0000 using MAC address from ROM
+eth0: ethernet@30be0000
+Fastboot: Normal
+Run CMD11 1.8V switch
+Error selecting device from bootcount_load()
+Run CMD11 1.8V switch
+Error selecting device from bootcount_store()
+Normal Boot
+Run CMD11 1.8V switch
+Error selecting device from bootcount_load()
+Hit any key to stop autoboot:  2  1  0 
+Run CMD11 1.8V switch
+Run CMD11 1.8V switch
+Error selecting device from bootcount_store()
+Run CMD11 1.8V switch
+Run CMD11 1.8V switch
+Initializing watchdog..
+Wrong Image Format for bootm command
+ERROR: can't get kernel image!
+u-boot=> 
