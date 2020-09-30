@@ -65,17 +65,26 @@ int rxflag=0; //semaphore
 int txflag=0; //semaphore
 static int txLen=0;
 char r,t;
+//int volatile * const rxRegister = (int *) &r;
+//int volatile * const txRegister = (int *) &t;
+//#define UART1_URXD (*(volatile unsigned char*)0x30860000)
+//#define UART1_UTXD (*(volatile unsigned char*)0x30860040)
+//unsigned char volatile * const rxRegister = (volatile unsigned char *) UART1_URXD;
+//unsigned char volatile * const txRegister = (volatile unsigned char *) UART1_UTXD;
 struct task_struct *task1, *task2;
 static DEFINE_MUTEX(my_mutex);
+//struct mutex my_mutex;
+//mutex_init(&my_mutex);
 #pragma interrupt_handler ISR
-void ISR(int x)        //set/reset ISR
+static irqreturn_t ISR(int irq, void *dev_id)        //set/reset ISR
 {
-   rxflag=x;
+   rxflag=1;
+   return IRQ_HANDLED;
 }
 #pragma interrupt_handler ISR2
 void ISR2(int x)        //set/reset ISR2
 {
-   txflag=x;
+   rxflag=x;
 }
 
 
@@ -175,6 +184,7 @@ static int thread_rx(void *data)
 {
    while(1)
    {
+      //printk(KERN_INFO "recv rx char: %c", readl(rxRegister));
       mutex_lock(&my_mutex);
       if(kill_thread){return 1;}
       if (rxflag == 1)
@@ -188,7 +198,8 @@ static int thread_rx(void *data)
 	 //rxBuffer[rxIndex] = rxRegister[0];
          rxIndex+=1;
          }
-         ISR(0);
+         //rxRegister[0] = (char)0;
+         ISR2(0);
        
       }
       mutex_unlock(&my_mutex);
@@ -304,6 +315,10 @@ static int __init ebbchar_init(void){
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
    task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
    task2 = kthread_run(thread_tx, NULL, "thread_func_tx");
+   return request_irq(28,	/* The number of the keyboard IRQ on PCs */
+			   ISR,	/* our handler */
+			   IRQF_TRIGGER_HIGH, "dcss-dpr",
+			   (void *)(ISR));
    return 0;
 }
 
@@ -316,6 +331,7 @@ static void __exit ebbchar_exit(void){
    kobject_put(register_kobj);
    //kthread_stop(task1);
    //kthread_stop(task2);
+   free_irq(1, NULL);
    printk(KERN_INFO "EBBChar: Goodbye from the LKM!\n");
 }
 
@@ -335,12 +351,17 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
    //printk(KERN_INFO "debug info nan : %s", txBuffer);
    for ( i=0;i<len;i++)
    {
-      ISR(1);        //Interrupt to set rxthread buffer copy 
-   }  
+      //ISR(1);        //Interrupt to set rxthread buffer copy 
+      //while(txflag){} //wait till thread reads register
+      //buffer[i] = txRegister[0]; //just a debug option to get what is in tx else data written to txregister will be set on tx line
+      // printk(KERN_INFO "debug info: %c", rxBuffer[rxIndex-1]);
+   }  //release comment when rx available
    return len;
 }
 
 static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, loff_t *offset){
+   //sprintf(message, "%s (%zu letters)", buffer, len);   // appending received string with its length
+  // size_of_message = strlen(message);                 // store the length of the stored message
    int i=0;
    msleep(5);
    lines+=1;
@@ -350,10 +371,16 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
    for (i=0;i<strlen(buffer);i++)
    {
       writel(buffer[i],txRegister);
-      msleep(1);
-      ISR(1);
-      msleep(5);
-
+      //txRegister[0] = buffer[i];
+      //txRegister[0] = buffer[i]; //in future remove this read from buffer as rxRegister will be set by UART port when data received and change interrupt to whenever data is available in rxregister
+      //printk(KERN_INFO "debug info: %c", buffer[i]);
+//      msleep(1);
+//      ISR(1);
+//      msleep(5);
+//      ISR2(1);        //Interrupt to set rxthread buffer copy 
+//      msleep(1);
+      //   if (buffer[i]=='\0' || buffer[i]=='\n'){i=strlen(buffer)-50;}
+      //while(!rxflag){} //wait till thread reads register
    }   
 
    printk(KERN_INFO "recv rx: %s", rxBuffer);
