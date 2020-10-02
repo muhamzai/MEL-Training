@@ -75,20 +75,24 @@ struct task_struct *task1, *task2;
 static DEFINE_MUTEX(my_mutex);
 //struct mutex my_mutex;
 //mutex_init(&my_mutex);
-#pragma interrupt_handler ISR
+
 static irqreturn_t ISR(int irq, void *dev_id)        //set/reset ISR
 {
-   rxflag=1;
+	printk(KERN_ALERT "irq num :%d",irq);
+//	if (irq == 0x1c)
+//		printk(KERN_ALERT "ISR HIT...\n");
+    mutex_lock(&my_mutex);
+         if(rxIndex>1023) //drop incoming packets if buffer full
+         {rxIndex=1023;}
+         else
+         {
+         rxBuffer[rxIndex]=(char)readl(rxRegister);
+         //rxBuffer[rxIndex] = rxRegister[0];
+         rxIndex+=1;
+         }
+      mutex_unlock(&my_mutex); 
    return IRQ_HANDLED;
 }
-#pragma interrupt_handler ISR2
-void ISR2(int x)        //set/reset ISR2
-{
-   rxflag=x;
-}
-
-
-
 
 
 
@@ -145,67 +149,7 @@ static struct attribute *register_attrs[] = {
 };
 static struct attribute_group  reg_attr_group = {
     .attrs = register_attrs
-};
-
-static int thread_tx(void *data)
-{
-   int i;
-   while(1)
-   {
-      mutex_lock(&my_mutex);
-      if(kill_thread){return 1;}
-      mutex_unlock(&my_mutex);
-      for ( i=0;i<txLen;i++)
-      {
-            
-         mutex_lock(&my_mutex);
-         if(kill_thread){return 1;}
-         mutex_unlock(&my_mutex);  
-         if (txflag==0)
-         {
-            i--;
-            /* do nothing - wait */
-         }
-         mutex_lock(&my_mutex);
-         if (txflag == 1)
-         {
-          // writel(0x0000,txRegister);
-           // txRegister[0] = txBuffer[i];
-            ISR2(0);
-         
-         }
-         mutex_unlock(&my_mutex);
-      }
-   }
-   return 0;
-}
-
-static int thread_rx(void *data)
-{
-   while(1)
-   {
-      //printk(KERN_INFO "recv rx char: %c", readl(rxRegister));
-      mutex_lock(&my_mutex);
-      if(kill_thread){return 1;}
-      if (rxflag == 1)
-      {
-	msleep(1);
-         if(rxIndex>1023) //drop incoming packets if buffer full
-         {rxIndex=1023;}
-         else 
-         {
-         rxBuffer[rxIndex]=(char)readl(rxRegister);
-	 //rxBuffer[rxIndex] = rxRegister[0];
-         rxIndex+=1;
-         }
-         //rxRegister[0] = (char)0;
-         ISR2(0);
-       
-      }
-      mutex_unlock(&my_mutex);
-   }
-   return 0;
-}
+};    
 
 static int __init ebbchar_init(void){
    int loopback = 4096;
@@ -275,6 +219,8 @@ static int __init ebbchar_init(void){
    UMCR1 = ioremap_nocache(UART_UMCR,4);
    UFCR1 = ioremap_nocache(UART_UFCR,4);
 
+   testRegister1 = ioremap_nocache(UART_UTS,4);
+
      struct clk *c;
    char ad= 0x96;
    struct device_node *dev;
@@ -310,15 +256,20 @@ static int __init ebbchar_init(void){
    writel(readl(UBMR1),UBMR);
    writel(readl(UCR11),UCR1);
    writel(readl(UMCR1),UMCR);
-   
-   writel(0x1000,testRegister);  
+   writel(readl(USR11),USR1);
+   writel(readl(USR12),USR2);
+
+//   free_irq(0x1c, NULL); 
+
+   writel(0x1000 ,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
-   task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
-   task2 = kthread_run(thread_tx, NULL, "thread_func_tx");
-   return request_irq(28,	/* The number of the keyboard IRQ on PCs */
-			   ISR,	/* our handler */
-			   IRQF_TRIGGER_HIGH, "dcss-dpr",
-			   (void *)(ISR));
+  
+    if (unlikely(request_irq(0x1c,    
+                           ISR, /* our handler */
+                           IRQF_TRIGGER_HIGH , "UART2",
+                           (void *)(ISR))
+))
+    {printk(KERN_INFO "debug info: request irq failed");}
    return 0;
 }
 
@@ -376,7 +327,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
       //printk(KERN_INFO "debug info: %c", buffer[i]);
 //      msleep(1);
 //      ISR(1);
-//      msleep(5);
+      msleep(5);
 //      ISR2(1);        //Interrupt to set rxthread buffer copy 
 //      msleep(1);
       //   if (buffer[i]=='\0' || buffer[i]=='\n'){i=strlen(buffer)-50;}
