@@ -19,7 +19,13 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/wait.h>
-
+#include <linux/errno.h>
+#include <linux/list.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/string.h>
+#include <linux/slab.h>
 #define  DEVICE_NAME "imxqUART"    ///< The device will appear at /dev/ebbchar using this value
 #define  CLASS_NAME  "UART"        ///< The device class -- this is a character device driver
 #define UART1_URXD 0x30880000       //32 bit read only
@@ -79,8 +85,8 @@ static DEFINE_MUTEX(my_mutex);
 static irqreturn_t ISR(int irq, void *dev_id)        //set/reset ISR
 {
 	printk(KERN_ALERT "irq num :%d",irq);
-//	if (irq == 0x1c)
-//		printk(KERN_ALERT "ISR HIT...\n");
+	if (irq == 0x1b)
+		printk(KERN_ALERT "ISR HIT...\n");
     mutex_lock(&my_mutex);
          if(rxIndex>1023) //drop incoming packets if buffer full
          {rxIndex=1023;}
@@ -154,6 +160,7 @@ static struct attribute_group  reg_attr_group = {
 static int __init ebbchar_init(void){
    int loopback = 4096;
    int retclk=0;
+   int retIrq=0;
    printk(KERN_INFO "EBBChar: Initializing the EBBChar LKM\n");
  
    // Try to dynamically allocate a major number for the device -- more difficult but worth it
@@ -264,7 +271,9 @@ static int __init ebbchar_init(void){
    writel(0x1000 ,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
   
-    if (unlikely(request_irq(0x1c,    
+   retIrq = irq_of_parse_and_map(dev,0x3c);
+   if (!retIrq){printk(KERN_INFO "debug info: map irq failed");}
+    if (unlikely(request_irq( retIrq,    
                            ISR, /* our handler */
                            IRQF_TRIGGER_HIGH , "UART2",
                            (void *)(ISR))
