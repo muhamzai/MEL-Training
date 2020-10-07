@@ -84,9 +84,6 @@ static DEFINE_MUTEX(my_mutex);
 
 static irqreturn_t ISR(int irq, void *dev_id)        //set/reset ISR
 {
-	printk(KERN_ALERT "irq num :%d",irq);
-	if (irq == 0x1b)
-		printk(KERN_ALERT "ISR HIT...\n");
     mutex_lock(&my_mutex);
          if(rxIndex>1023) //drop incoming packets if buffer full
          {rxIndex=1023;}
@@ -271,7 +268,7 @@ static int __init ebbchar_init(void){
    writel(0x1000 ,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
   
-   retIrq = irq_of_parse_and_map(dev,0x3c);
+   retIrq = irq_of_parse_and_map(dev,0);
    if (!retIrq){printk(KERN_INFO "debug info: map irq failed");}
     if (unlikely(request_irq( retIrq,    
                            ISR, /* our handler */
