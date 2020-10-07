@@ -37,8 +37,27 @@
 #define UART1_UBRC 0x308800AC
 #define UART1_UMCR 0x308800B8
 
+
+#define UART_URXD 0x30860000       //32 bit read only
+#define UART_UTXD 0x30860040       //32 bit write only
+#define UART_UCR1 0x30860080       //32bit r/w control register
+#define UART_UCR2 0x30860084       //32bit r/w control register
+#define UART_UCR3 0x30860088       //32bit r/w control register
+#define UART_UCR4 0x3086008C       //32bit r/w control register
+#define UART_UFCR 0x30860090       //32bit r/w FIFO control register
+#define UART_UTS  0x308600B4       //UART testing register
+#define UART_USR1 0x30860094
+#define UART_USR2 0x30860098
+#define UART_UBIR 0x308600A4
+#define UART_UBMR 0x308600A8
+#define UART_UBRC 0x308600AC
+#define UART_UMCR 0x308600B8
+
+
+
 char __iomem *txRegister, *rxRegister, *UCR1 ,*UCR2, *UCR3, *UCR4, *testRegister, *USR1,*USR2,*UBIR,*UBMR,*UBRC,*UMCR ,*UFCR;
 char __iomem *ctrlReg, *testReg;
+char __iomem *UCR11 ,*UCR12, *UCR13, *UCR14, *testRegister1, *USR11,*USR12,*UBIR1,*UBMR1,*UBRC1,*UMCR1 ,*UFCR1;
 static char rxBuffer[1024]={"\0"};
 static char txBuffer[1024]={"\0"};
 static int rxIndex=0;
@@ -74,7 +93,7 @@ void ISR2(int x)        //set/reset ISR2
 
 
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality
-MODULE_AUTHOR("Derek Molloy");    ///< The author -- visible when you use modinfo
+MODULE_AUTHOR("Hamza");    ///< The author -- visible when you use modinfo
 MODULE_DESCRIPTION("A simple Linux char driver for the char-dev");  ///< The description -- see modinfo
 MODULE_VERSION("0.1");            ///< A version number to inform users
  
@@ -96,6 +115,14 @@ static struct file_operations fops =
    .read = dev_read,
    .write = dev_write,
    .release = dev_release,
+};
+
+static struct uart_driver msm_uart_driver = {
+	.owner = THIS_MODULE,
+	.driver_name = "msm_serial",
+	.dev_name = DEVICE_NAME,
+
+
 };
 
 static struct kobject *register_kobj;
@@ -190,6 +217,7 @@ static int __init ebbchar_init(void){
       printk(KERN_ALERT "EBBChar failed to register a major number\n");
       return majorNumber;
    }
+//   uart_register_driver(&msm_uart_driver);
    printk(KERN_INFO "EBBChar: registered correctly with major number %d\n", majorNumber);
  
    // Register the device class
@@ -234,22 +262,54 @@ static int __init ebbchar_init(void){
    UMCR = ioremap_nocache(UART1_UMCR,4);
    UFCR = ioremap_nocache(UART1_UFCR,4);
 
-   writel(0x0001,UCR1);
-   writel(0x2127,UCR2);
-   writel(0x0704,UCR3);
-   writel(0x7C00,UCR4);
-   writel(0x089E,UFCR);
-   writel(0x089E,UBIR);
-   writel(0x0C34,UBMR);
-   writel(0x2201,UCR1);
-   writel(0x0000,UMCR);
-   struct clk *c;
-   char ad= 0x96; 
+   UCR11 = ioremap_nocache(UART_UCR1, 4);
+   UCR12 = ioremap_nocache(UART_UCR2, 4);
+   UCR13 = ioremap_nocache(UART_UCR3, 4);
+   UCR14 = ioremap_nocache(UART_UCR4, 4);
+   USR11 = ioremap_nocache(UART_USR1,4);
+   USR12 = ioremap_nocache(UART_USR2,4);
+   UBIR1 = ioremap_nocache(UART_UBIR,4);
+   UBMR1 = ioremap_nocache(UART_UBMR,4);
+   UBRC1 = ioremap_nocache(UART_UBRC,4);
+   UMCR1 = ioremap_nocache(UART_UMCR,4);
+   UFCR1 = ioremap_nocache(UART_UFCR,4);
+
+     struct clk *c;
+   char ad= 0x96;
    struct device_node *dev;
-   dev = of_find_node_by_path("/serial@30880000");
-	c = of_clk_get(dev,&ad);
-   retclk = clk_prepare_enable(c);
-   if (retclk<=0){printk(KERN_INFO "Clock Failed\n");}
+
+     dev = of_find_node_by_path("/serial@30880000");
+        c = of_clk_get_by_name(dev,"per");
+        if (IS_ERR(c)||c==NULL)
+        {
+                printk(KERN_INFO "NO CLOCK FOUND");
+        }
+   retclk = clk_prepare(c);
+   if (retclk<0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
+   retclk = clk_enable(c);
+   if (retclk<0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
+
+        c = of_clk_get_by_name(dev,"ipg");
+        if (IS_ERR(c)||c==NULL)
+        {
+                printk(KERN_INFO "NO CLOCK FOUND");
+        }
+   retclk = clk_prepare(c);
+   if (retclk<0){printk(KERN_INFO "Clock prepare Failed : %d\n",retclk);}
+   retclk = clk_enable(c);
+   if (retclk<0){printk(KERN_INFO "Clock enable Failed : %d\n",retclk);}
+
+
+   writel(0x0001,UCR1);
+   writel(readl(UCR12),UCR2);
+   writel(readl(UCR13),UCR3);
+   writel(readl(UCR14),UCR4);
+   writel(readl(UFCR1),UFCR);
+   writel(readl(UBIR1),UBIR);
+   writel(readl(UBMR1),UBMR);
+   writel(readl(UCR11),UCR1);
+   writel(readl(UMCR1),UMCR);
+   
    writel(0x1000,testRegister);  
    printk(KERN_INFO "EBBChar: device class created correctly\n"); // Made it! device was initialized
    task1 = kthread_run(thread_rx, NULL, "thread_func_rx");
@@ -297,6 +357,7 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
    //sprintf(message, "%s (%zu letters)", buffer, len);   // appending received string with its length
   // size_of_message = strlen(message);                 // store the length of the stored message
    int i=0;
+   msleep(5);
    lines+=1;
    rxIndex=0;
    printk(KERN_INFO "recv tx pin: %s", buffer);
@@ -306,14 +367,14 @@ static ssize_t dev_write(struct file *filep, const char *buffer, size_t len, lof
       writel(buffer[i],txRegister);
       //txRegister[0] = buffer[i];
       //txRegister[0] = buffer[i]; //in future remove this read from buffer as rxRegister will be set by UART port when data received and change interrupt to whenever data is available in rxregister
-      //printk(KERN_INFO "debug info: %c", txRegister[0]);
+      //printk(KERN_INFO "debug info: %c", buffer[i]);
       msleep(1);
       ISR(1);
-      msleep(1);
+      msleep(5);
 //      ISR2(1);        //Interrupt to set rxthread buffer copy 
 //      msleep(1);
       //   if (buffer[i]=='\0' || buffer[i]=='\n'){i=strlen(buffer)-50;}
-      //while(rxflag){} //wait till thread reads register
+      //while(!rxflag){} //wait till thread reads register
    }   
 
    printk(KERN_INFO "recv rx: %s", rxBuffer);
