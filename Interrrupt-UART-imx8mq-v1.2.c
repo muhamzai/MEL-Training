@@ -56,26 +56,23 @@
 #define UART_UBMR 0x308600A8
 #define UART_UBRC 0x308600AC
 #define UART_UMCR 0x308600B8
-static DEFINE_MUTEX(my_mutex);
 
 MODULE_LICENSE("GPL");            ///< The license type -- this affects available functionality
 MODULE_AUTHOR("Hamza");    ///< The author -- visible when you use modinfo
 MODULE_DESCRIPTION("Linux interrupt based UART driver");  ///< The description -- see modinfo
-MODULE_VERSION("1.1");            ///< Fixed free_irq issue which caused module to stuck at reinsertion
-
-char __iomem* txRegister, * rxRegister, * UCR1, * UCR2, * UCR3, * UCR4, * testRegister, * USR1, * USR2, * UBIR, * UBMR, * UBRC, * UMCR, * UFCR;
-char __iomem* ctrlReg, * testReg;
-char __iomem* UCR11, * UCR12, * UCR13, * UCR14, * testRegister1, * USR11, * USR12, * UBIR1, * UBMR1, * UBRC1, * UMCR1, * UFCR1;
+MODULE_VERSION("1.2");            ///< A version number to inform users
 
 typedef struct UART_vars
 {
 	char rxBuffer[1024];
+	struct clk* c1 , *c2;
 	int  rxIndex;
 	int  majorNumber;
 	int  lines;
 	int  retIrq;
 	struct device_node* dev;
 	int  numberOpens;              ///< Counts the number of times the device is opened
+	char __iomem* txRegister, * rxRegister;
 } UART_vars;
 
 static struct class* ebbcharClass = NULL; ///< The device-driver class struct pointer
@@ -85,17 +82,15 @@ struct UART_vars *vars;
 
 static irqreturn_t ISR(int irq, void* dev_id)      // IRQ handler
 {
-	mutex_lock(&my_mutex);
 	if (vars->rxIndex > 1023) //drop incoming packets if buffer full
 	{
 		vars->rxIndex = 1023;
 	}
 	else
 	{
-		vars->rxBuffer[vars->rxIndex] = (char)readl(rxRegister);
+		vars->rxBuffer[vars->rxIndex] = (char)readl(vars->rxRegister);
 		vars->rxIndex += 1;
 	}
-	mutex_unlock(&my_mutex);
 	return IRQ_HANDLED;
 }
 
@@ -134,8 +129,9 @@ static struct attribute_group  reg_attr_group = {
 static int __init ebbchar_init(void) {
 
 	int retclk = 0;
-	struct clk* c;
 
+	char __iomem* * UCR1, * UCR2, * UCR3, * UCR4, * testRegister, * USR1, * USR2, * UBIR, * UBMR, * UBRC, * UMCR, * UFCR;
+	char __iomem* UCR11, * UCR12, * UCR13, * UCR14, * testRegister1, * USR11, * USR12, * UBIR1, * UBMR1, * UBRC1, * UMCR1, * UFCR1;
 	vars = kmalloc(sizeof(UART_vars),GFP_KERNEL); //allocate space to global struct pointer
 	memset(vars->rxBuffer,'\0',1024);
         vars->rxIndex = 0;
@@ -143,6 +139,7 @@ static int __init ebbchar_init(void) {
         vars->lines = 0;
 	vars->retIrq = 0;
         vars->numberOpens = 0;
+
 	printk(KERN_INFO "EBBChar: Initializing the EBBChar LKM\n");
 
 	// Try to dynamically allocate a major number for the device -- more difficult but worth it
@@ -181,8 +178,8 @@ static int __init ebbchar_init(void) {
 		return -ENOMEM;
 	}
 
-	txRegister = ioremap_nocache(UART1_UTXD, 4);
-	rxRegister = ioremap_nocache(UART1_URXD, 4);
+	vars->txRegister = ioremap_nocache(UART1_UTXD, 4);
+	vars->rxRegister = ioremap_nocache(UART1_URXD, 4);
 	testRegister = ioremap_nocache(UART1_UTS, 4);
 	testRegister1 = ioremap_nocache(UART_UTS, 4);
 	UCR1 = ioremap_nocache(UART1_UCR1, 4);
@@ -211,24 +208,24 @@ static int __init ebbchar_init(void) {
 
 	/* The device node's clocks need to be initialized to write to the hwRegisters */
 	vars->dev = of_find_node_by_path("/serial@30880000"); // get device node from dtb
-	c = of_clk_get_by_name(vars->dev, "per");				// get "per" clock of our target device from dtb
-	if (IS_ERR(c) || c == NULL)
+	vars->c1 = of_clk_get_by_name(vars->dev, "per");				// get "per" clock of our target device from dtb
+	if (IS_ERR(vars->c1))
 	{
 		printk(KERN_INFO "NO CLOCK FOUND");
 	}
-	retclk = clk_prepare(c);						//prepare clock to be initialized
+	retclk = clk_prepare(vars->c1);						//prepare clock to be initialized
 	if (retclk < 0) { printk(KERN_INFO "Clock prepare Failed : %d\n", retclk); }
-	retclk = clk_enable(c);							//initialize the clock
+	retclk = clk_enable(vars->c1);							//initialize the clock
 	if (retclk < 0) { printk(KERN_INFO "Clock enable Failed : %d\n", retclk); }
 
-	c = of_clk_get_by_name(vars->dev, "ipg");				// get "ipg" clock of our target device from dtb
-	if (IS_ERR(c) || c == NULL)
+	vars->c2 = of_clk_get_by_name(vars->dev, "ipg");				// get "ipg" clock of our target device from dtb
+	if (IS_ERR(vars->c2))
 	{
 		printk(KERN_INFO "NO CLOCK FOUND");
 	}
-	retclk = clk_prepare(c);						//prepare clock to be initialized
+	retclk = clk_prepare(vars->c2);						//prepare clock to be initialized
 	if (retclk < 0) { printk(KERN_INFO "Clock prepare Failed : %d\n", retclk); }
-	retclk = clk_enable(c);							//initialize the clock
+	retclk = clk_enable(vars->c2);							//initialize the clock
 	if (retclk < 0) { printk(KERN_INFO "Clock enable Failed : %d\n", retclk); }
 
 
@@ -260,7 +257,7 @@ static int __init ebbchar_init(void) {
 }
 
 static void __exit ebbchar_exit(void) {
-	struct clk *c;
+
 	free_irq(vars->retIrq,(void *) ISR);
 	if (!free_irq(0,vars->dev)) //remove irq handler associated with device node
         {printk(KERN_INFO "IRQ free!!!\n");}
@@ -269,10 +266,10 @@ static void __exit ebbchar_exit(void) {
 	class_destroy(ebbcharClass);                             // remove the device class
 	unregister_chrdev(vars->majorNumber, DEVICE_NAME);             // unregister the major number
 	kobject_put(register_kobj);
-	c = of_clk_get_by_name(vars->dev, "ipg");
-        clk_disable_unprepare(c);           //disable and unprepare register clocks
-        c = of_clk_get_by_name(vars->dev, "per");
-        clk_disable_unprepare(c);
+
+        clk_disable_unprepare(vars->c1);           //disable and unprepare register clocks
+
+        clk_disable_unprepare(vars->c2);
         kfree (vars);
 	printk(KERN_INFO "EBBChar: Goodbye from the LKM!\n");
 }
@@ -299,7 +296,7 @@ static ssize_t dev_write(struct file* filep, const char* buffer, size_t len, lof
 	memset(vars->rxBuffer, '\0', 1024);
 	for (i = 0; i < strlen(buffer); i++)
 	{
-		writel(buffer[i], txRegister);   //write character by character the line to tx
+		writel(buffer[i], vars->txRegister);   //write character by character the line to tx
 	}
 	msleep(5);
 	printk(KERN_INFO "recv rx: %s", vars->rxBuffer);
