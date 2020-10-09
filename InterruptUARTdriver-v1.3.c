@@ -115,7 +115,7 @@ static int __init ebbchar_init(void) {
 
 	int retclk = 0;
 
-	char __iomem* * UCR1, * UCR2, * UCR3, * UCR4, * testRegister, * USR1, * USR2, * UBIR, * UBMR, * UBRC, * UMCR, * UFCR;
+	char __iomem * UCR1, * UCR2, * UCR3, * UCR4, * testRegister, * USR1, * USR2, * UBIR, * UBMR, * UBRC, * UMCR, * UFCR;
 
 	vars = kmalloc(sizeof(UART_vars),GFP_KERNEL); //allocate space to global struct pointer
 	memset(vars->rxBuffer,'\0',1024);
